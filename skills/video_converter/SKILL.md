@@ -1,6 +1,8 @@
-# Agent Skills
 
-This directory contains reusable skills/tools for various tasks.
+---
+name: video-converter
+description: Convert videos in a directory to a specified aspect ratio with intelligent cropping using ffmpeg. Works with relative dimensions instead of absolute pixels for maximum flexibility. Use this skill when the human asks to crop a video or directory of videos to a specific aspect ratio.
+---
 
 ## Video Converter
 
@@ -33,20 +35,20 @@ sudo apt-get install ffmpeg
 
 To auto-install dependencies without prompting (useful for scripts):
 ```bash
-~/.agents/skills/video_converter.py /path/to/videos --auto-install-deps
+./scripts/video_converter.py /path/to/videos --auto-install-deps
 ```
 
 ### Basic Usage
 
 ```bash
 # Convert all videos to 16:9 aspect ratio (auto-crops and scales)
-~/.agents/skills/video_converter.py /path/to/videos --aspect-ratio 16:9
+./scripts/video_converter.py /path/to/videos --aspect-ratio 16:9
 
 # Convert to 4:3 aspect ratio with max dimension of 1080p
-~/.agents/skills/video_converter.py /path/to/videos --aspect-ratio 4:3 --max-dimension 1080
+./scripts/video_converter.py /path/to/videos --aspect-ratio 4:3 --max-dimension 1080
 
 # Specify output directory
-~/.agents/skills/video_converter.py /path/to/videos --aspect-ratio 16:9 --output-dir /path/to/output
+./scripts/video_converter.py /path/to/videos --aspect-ratio 16:9 --output-dir /path/to/output
 ```
 
 ### Aspect Ratio Conversion
@@ -55,19 +57,19 @@ The skill intelligently crops and scales videos to match the target aspect ratio
 
 ```bash
 # Convert to Instagram landscape (4:3)
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 4:3
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 4:3
 
 # Convert to widescreen (16:9)
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 16:9
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9
 
 # Convert to square (1:1) - perfect for Instagram posts
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 1:1
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 1:1
 
 # Convert to vertical video (9:16) - TikTok/Reels/Stories
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 9:16
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 9:16
 
 # Convert to ultra-wide (21:9)
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 21:9
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 21:9
 ```
 
 ### Custom Cropping with Aspect Ratio
@@ -79,25 +81,25 @@ The skill intelligently crops and scales videos to match the target aspect ratio
 
 ```bash
 # Remove left 20%, create 9:16 crop aligned to left of remaining area
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 9:16 \
   --crop-x 20% \
   --crop-align-x left
 
 # Remove left 20%, center the 9:16 crop in remaining area
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 9:16 \
   --crop-x 20% \
   --crop-align-x center
 
 # Remove top 10%, align 16:9 crop to bottom of remaining area
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --crop-y 10% \
   --crop-align-y bottom
 
 # Remove left 15% and top 10%, center both directions
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 4:3 \
   --crop-x 15% \
   --crop-y 10% \
@@ -115,17 +117,17 @@ Control output resolution while maintaining aspect ratio:
 
 ```bash
 # Limit output to 1080p max (maintains aspect ratio)
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --max-dimension 1080
 
 # Limit to 720p
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --max-dimension 720
 
 # 4K output (max 3840)
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --max-dimension 3840
 ```
@@ -134,22 +136,22 @@ Control output resolution while maintaining aspect ratio:
 
 ```bash
 # High quality (lower CRF = better quality, larger file)
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --crf 18
 
 # Fast encoding
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 4:3 \
   --preset fast
 
 # Use H.265 codec for better compression
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --codec libx265
 
 # Custom audio settings
-~/.agents/skills/video_converter.py ~/Videos/input \
+./scripts/video_converter.py ~/Videos/input \
   --aspect-ratio 16:9 \
   --audio-codec aac \
   --audio-bitrate 256k
@@ -159,13 +161,13 @@ Control output resolution while maintaining aspect ratio:
 
 ```bash
 # Process subdirectories recursively
-~/.agents/skills/video_converter.py ~/Videos/input --recursive
+./scripts/video_converter.py ~/Videos/input --recursive
 
 # Dry run (see what would happen without converting)
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 16:9 --dry-run
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --dry-run
 
 # Overwrite existing files
-~/.agents/skills/video_converter.py ~/Videos/input --aspect-ratio 16:9 --overwrite
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --overwrite
 ```
 
 ### Understanding Crop Parameters
@@ -190,49 +192,49 @@ When using `--aspect-ratio`, the skill automatically determines the crop dimensi
 
 **Instagram Landscape (4:3)**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 4:3 \
   --max-dimension 1080
 ```
 
 **Instagram Square Post (1:1)**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 1:1 \
   --max-dimension 1080
 ```
 
 **YouTube Shorts / TikTok / Reels (9:16)**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 9:16 \
   --max-dimension 1920
 ```
 
 **Instagram Story (9:16)**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 9:16 \
   --max-dimension 1920
 ```
 
 **Standard HD YouTube (16:9)**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 16:9 \
   --max-dimension 1080
 ```
 
 **Cinematic Widescreen (21:9)**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 21:9 \
   --max-dimension 1080
 ```
 
 **Custom crop position for 4:3, offset from left**
 ```bash
-~/.agents/skills/video_converter.py ~/Desktop/videos \
+./scripts/video_converter.py ~/Desktop/videos \
   --aspect-ratio 4:3 \
   --crop-x 17% \
   --max-dimension 1080
