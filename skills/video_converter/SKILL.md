@@ -1,250 +1,316 @@
-
 ---
 name: video-converter
 description: Convert videos in a directory to a specified aspect ratio with intelligent cropping using ffmpeg. Works with relative dimensions instead of absolute pixels for maximum flexibility. Use this skill when the human asks to crop a video or directory of videos to a specific aspect ratio.
 ---
 
-## Video Converter
+# Video Converter
 
-Convert videos in a directory to a specified aspect ratio with intelligent cropping using ffmpeg. Works with relative dimensions instead of absolute pixels for maximum flexibility.
+Intelligent video conversion tool using ffmpeg with aspect-ratio-based cropping and scaling.
 
-**Key Features:**
-- Aspect ratio-based conversion (e.g., 16:9, 4:3, 9:16, 1:1)
-- Edge-based cropping with alignment control
-- Automatic scaling with quality control
-- Recursive directory processing
-- Percentage-based positioning
+## Quick Start
 
-**How Cropping Works:**
-1. Remove specified amount from edges (e.g., `--crop-x 20%` discards left 20%)
-2. Create maximum-sized crop matching target aspect ratio from remaining area
-3. Position final crop using alignment parameters (`--crop-align-x`, `--crop-align-y`)
+```bash
+# Convert to 9:16 vertical (TikTok/Reels)
+./scripts/video_converter.py /path/to/videos --aspect-ratio 9:16
 
-### Installation
+# Remove left 20%, create 9:16 aligned left, scale to 1920px
+./scripts/video_converter.py /path/to/videos --aspect-ratio 9:16 --max-dimension 1920 --crop-x 20% --crop-align-x left
+```
 
-The skill will automatically check for ffmpeg and offer to install it on macOS using Homebrew if it's missing.
+## Core Algorithm
 
-For manual installation:
+When aspect ratio and edge cropping are specified:
+
+1. **Edge Removal**: `--crop-x` and `--crop-y` remove portions from edges
+   - `--crop-x 20%` removes the leftmost 20% of the video  
+   - `--crop-y 10%` removes the topmost 10% of the video
+
+2. **Aspect Ratio Maximization**: Within remaining area, create the largest possible crop matching target aspect ratio
+   - If `--aspect-ratio 9:16`, crop will have width:height = 9:16
+   - Crop is maximized to fill as much of remaining area as possible
+
+3. **Alignment Positioning**: Position final crop using alignment parameters
+   - `--crop-align-x left|center|right` (horizontal)
+   - `--crop-align-y top|center|bottom` (vertical)
+
+## Installation
+
+Automatic (macOS with Homebrew):
+```bash
+./scripts/video_converter.py /path --auto-install-deps
+```
+
+Manual:
 ```bash
 # macOS
 brew install ffmpeg
 
-# Ubuntu/Debian
+# Ubuntu/Debian  
 sudo apt-get install ffmpeg
 ```
 
-To auto-install dependencies without prompting (useful for scripts):
-```bash
-./scripts/video_converter.py /path/to/videos --auto-install-deps
-```
-
-### Basic Usage
-
-```bash
-# Convert all videos to 16:9 aspect ratio (auto-crops and scales)
-./scripts/video_converter.py /path/to/videos --aspect-ratio 16:9
-
-# Convert to 4:3 aspect ratio with max dimension of 1080p
-./scripts/video_converter.py /path/to/videos --aspect-ratio 4:3 --max-dimension 1080
-
-# Specify output directory
-./scripts/video_converter.py /path/to/videos --aspect-ratio 16:9 --output-dir /path/to/output
-```
+## Usage Examples
 
 ### Aspect Ratio Conversion
 
-The skill intelligently crops and scales videos to match the target aspect ratio:
-
 ```bash
-# Convert to Instagram landscape (4:3)
-./scripts/video_converter.py ~/Videos/input --aspect-ratio 4:3
-
-# Convert to widescreen (16:9)
+# 16:9 widescreen
 ./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9
 
-# Convert to square (1:1) - perfect for Instagram posts
-./scripts/video_converter.py ~/Videos/input --aspect-ratio 1:1
-
-# Convert to vertical video (9:16) - TikTok/Reels/Stories
+# 9:16 vertical (TikTok/Reels/Stories)
 ./scripts/video_converter.py ~/Videos/input --aspect-ratio 9:16
 
-# Convert to ultra-wide (21:9)
-./scripts/video_converter.py ~/Videos/input --aspect-ratio 21:9
+# 1:1 square (Instagram posts)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 1:1
+
+# 4:3 (Instagram landscape)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 4:3
 ```
 
-### Custom Cropping with Aspect Ratio
-
-**Cropping Algorithm:**
-1. `--crop-x` and `--crop-y` define how much to remove from edges (e.g., `--crop-x 20%` removes the left 20%)
-2. Within the remaining area, the aspect ratio crop is positioned using `--crop-align-x` and `--crop-align-y`
-3. The final crop is maximized to fit the aspect ratio
+### Edge Removal + Aspect Ratio
 
 ```bash
-# Remove left 20%, create 9:16 crop aligned to left of remaining area
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 9:16 \
-  --crop-x 20% \
-  --crop-align-x left
+# Remove left 20%, create 9:16 aligned left
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 9:16 --crop-x 20% --crop-align-x left
 
-# Remove left 20%, center the 9:16 crop in remaining area
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 9:16 \
-  --crop-x 20% \
-  --crop-align-x center
+# Remove left 20%, center the crop
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 9:16 --crop-x 20% --crop-align-x center
 
-# Remove top 10%, align 16:9 crop to bottom of remaining area
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --crop-y 10% \
-  --crop-align-y bottom
+# Remove top 10%, align to bottom
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --crop-y 10% --crop-align-y bottom
 
-# Remove left 15% and top 10%, center both directions
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 4:3 \
-  --crop-x 15% \
-  --crop-y 10% \
-  --crop-align-x center \
-  --crop-align-y center
+# Remove left 15% AND top 10%, center both ways
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 4:3 --crop-x 15% --crop-y 10% --crop-align-x center --crop-align-y center
 ```
-
-**Alignment Options:**
-- `--crop-align-x`: `left` (default), `center`, or `right`
-- `--crop-align-y`: `top` (default), `center`, or `bottom`
 
 ### Resolution Control
 
-Control output resolution while maintaining aspect ratio:
-
 ```bash
-# Limit output to 1080p max (maintains aspect ratio)
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --max-dimension 1080
+# Scale to 1080p (larger dimension = 1080)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --max-dimension 1080
 
-# Limit to 720p
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --max-dimension 720
+# Scale to 1920p (for 9:16 vertical, height becomes 1920)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 9:16 --max-dimension 1920
 
-# 4K output (max 3840)
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --max-dimension 3840
+# 4K output
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --max-dimension 3840
 ```
 
-### Quality & Format Settings
+Note: Supports both upscaling and downscaling.
+
+### Quality Settings
 
 ```bash
-# High quality (lower CRF = better quality, larger file)
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --crf 18
+# High quality (CRF 18, slower, larger files)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --crf 18 --preset slow
 
-# Fast encoding
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 4:3 \
-  --preset fast
+# Balanced (default: CRF 23, medium preset)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9
 
-# Use H.265 codec for better compression
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --codec libx265
+# Fast encoding (lower quality, smaller files)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --crf 28 --preset fast
 
-# Custom audio settings
-./scripts/video_converter.py ~/Videos/input \
-  --aspect-ratio 16:9 \
-  --audio-codec aac \
-  --audio-bitrate 256k
+# H.265 codec for better compression
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --codec libx265
 ```
 
-### Advanced Options
+CRF Scale: 0 (lossless) to 51 (worst)
+- 18-20: Very high quality
+- 23: Default (good quality)
+- 28-30: Lower quality, smaller files
+
+### Batch Processing
 
 ```bash
 # Process subdirectories recursively
-./scripts/video_converter.py ~/Videos/input --recursive
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --recursive
 
-# Dry run (see what would happen without converting)
+# Dry run (preview without converting)
 ./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --dry-run
+
+# Debug mode (verbose logging)
+./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --debug
 
 # Overwrite existing files
 ./scripts/video_converter.py ~/Videos/input --aspect-ratio 16:9 --overwrite
 ```
 
-### Understanding Crop Parameters
+## Social Media Formats
 
-When using `--aspect-ratio`, the skill automatically determines the crop dimensions needed. You can override the crop position:
-
-- `--crop-x`: Starting X position (left edge of crop area)
-  - Use `20%` for 20% from left
-  - Use `center` to center horizontally (default when cropping width)
-  - Percentages are relative to each video's dimensions
-
-- `--crop-y`: Starting Y position (top edge of crop area)
-  - Use `10%` for 10% from top
-  - Use `center` to center vertically (default when cropping height)
-  - Percentages are relative to each video's dimensions
-
-- `--crop-width` / `--crop-height`: Manual crop dimensions (rarely needed)
-  - Use `60%` for 60% of original dimension
-  - The skill auto-calculates these from aspect ratio
-
-### Common Use Cases
-
-**Instagram Landscape (4:3)**
+### TikTok / Instagram Reels / YouTube Shorts (9:16)
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 4:3 \
-  --max-dimension 1080
+./scripts/video_converter.py ~/Videos/raw --aspect-ratio 9:16 --max-dimension 1920 --recursive
 ```
 
-**Instagram Square Post (1:1)**
+### Instagram Feed Post (1:1 square)
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 1:1 \
-  --max-dimension 1080
+./scripts/video_converter.py ~/Videos/raw --aspect-ratio 1:1 --max-dimension 1080
 ```
 
-**YouTube Shorts / TikTok / Reels (9:16)**
+### YouTube / Vimeo (16:9 widescreen)
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 9:16 \
-  --max-dimension 1920
+./scripts/video_converter.py ~/Videos/raw --aspect-ratio 16:9 --max-dimension 1080 --crf 20 --preset slow
 ```
 
-**Instagram Story (9:16)**
+## Troubleshooting
+
+### ffmpeg not found
+Install ffmpeg or use `--auto-install-deps`:
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 9:16 \
-  --max-dimension 1920
+./scripts/video_converter.py /path --auto-install-deps --aspect-ratio 9:16
 ```
 
-**Standard HD YouTube (16:9)**
+### No video files found
+Check directory contains supported formats (`.mp4`, `.mov`, `.avi`, `.mkv`, `.flv`, `.wmv`, `.m4v`, `.webm`, `.mpg`, `.mpeg`):
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 16:9 \
-  --max-dimension 1080
+ls /path/to/videos
 ```
 
-**Cinematic Widescreen (21:9)**
+### Invalid aspect ratio format
+Use format like `16:9`, `9:16`, `4:3`, `1:1`:
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 21:9 \
-  --max-dimension 1080
+# Correct
+--aspect-ratio 9:16
+
+# Incorrect
+--aspect-ratio 0.5625  # Use 9:16
+--aspect-ratio 9x16    # Use : not x
 ```
 
-**Custom crop position for 4:3, offset from left**
+### Percentage cannot exceed 100%
+Use values between 0% and 100%:
 ```bash
-./scripts/video_converter.py ~/Desktop/videos \
-  --aspect-ratio 4:3 \
-  --crop-x 17% \
-  --max-dimension 1080
+# Correct
+--crop-x 20%
+
+# Incorrect
+--crop-x 120%
 ```
 
-### How It Works
+### Conversion is very slow
+- Use faster preset: `--preset fast`
+- Reduce resolution: `--max-dimension 720`
 
-1. **Aspect Ratio Detection**: The skill analyzes each video's current aspect ratio
-2. **Intelligent Cropping**: If the video doesn't match the target aspect ratio, it automatically crops to fit (centered by default)
-3. **Smart Scaling**: After cropping, scales to the desired maximum dimension while preserving the aspect ratio
-4. **Relative Dimensions**: All operations use percentages and aspect ratios, not fixed pixel values, so it works with any input resolution
+### Output files too large
+- Increase CRF: `--crf 28`
+- Use H.265: `--codec libx265`
+- Lower audio bitrate: `--audio-bitrate 128k`
 
-This approach ensures consistent output across videos of different sizes while maintaining quality and flexibility.
+### Poor quality output
+- Decrease CRF: `--crf 18`
+- Use slower preset: `--preset slow`
+- Increase audio bitrate: `--audio-bitrate 256k`
+
+## API Reference
+
+### Parameters
+
+**Required:**
+- `input_dir`: Directory containing videos
+
+**Aspect Ratio & Cropping:**
+- `--aspect-ratio RATIO`: Target aspect ratio (e.g., `9:16`, `16:9`, `4:3`, `1:1`)
+- `--crop-x OFFSET`: How far from LEFT edge to start crop (e.g., `20%`)
+- `--crop-y OFFSET`: How far from TOP edge to start crop (e.g., `10%`)
+- `--crop-align-x {left,center,right}`: Horizontal alignment (default: `left`)
+- `--crop-align-y {top,center,bottom}`: Vertical alignment (default: `top`)
+- `--crop-width WIDTH`: Manual crop width (overrides aspect ratio)
+- `--crop-height HEIGHT`: Manual crop height (overrides aspect ratio)
+
+**Output Format:**
+- `--output-dir DIR`: Output directory (default: `<input_dir>_converted`)
+- `--format FORMAT`: Output format (default: `mp4`)
+- `--codec CODEC`: Video codec (default: `libx264`)
+- `--max-dimension PIXELS`: Max width/height preserving aspect ratio
+- `--crf VALUE`: Quality 0-51, lower=better (default: `23`)
+- `--preset PRESET`: Speed vs compression (default: `medium`)
+- `--audio-codec CODEC`: Audio codec (default: `aac`)
+- `--audio-bitrate BITRATE`: Audio bitrate (default: `192k`)
+
+**Behavior:**
+- `--recursive`: Process subdirectories
+- `--overwrite`: Overwrite existing files
+- `--dry-run`: Show commands without executing
+- `--debug`: Enable debug logging
+- `--auto-install-deps`: Auto-install ffmpeg (macOS only, requires Homebrew)
+
+### Exit Codes
+- `0`: Success
+- `1`: Error (missing deps, no files, conversion failures)
+- `2`: Invalid arguments
+
+### Programmatic Usage
+
+```python
+from pathlib import Path
+from video_converter import VideoConverter
+
+converter = VideoConverter(
+    aspect_ratio='9:16',
+    max_dimension=1920,
+    crf=23,
+    crop_align_x='left',
+    crop_align_y='top'
+)
+
+successful, failed = converter.process_directory(
+    input_dir=Path('/path/to/videos'),
+    output_dir=Path('/path/to/output'),
+    crop_x='20%',
+    recursive=True
+)
+
+print(f"Converted {successful} videos, {failed} failed")
+```
+
+## For Future Agents
+
+### When to Use
+- Converting videos to specific aspect ratios for social media
+- Batch processing video directories
+- Removing unwanted edges before cropping
+- Creating consistent output formats
+- Resizing videos while maintaining aspect ratio
+
+### Key Parameters
+1. `--aspect-ratio`: ALWAYS specify for smart auto-cropping (e.g., `9:16` for vertical)
+2. `--crop-x` / `--crop-y`: Use to REMOVE edges BEFORE aspect ratio crop
+3. `--crop-align-x` / `--crop-align-y`: Controls WHERE final crop sits
+4. `--max-dimension`: Scales output (supports upscaling AND downscaling)
+5. `--recursive`: Don't forget for nested directories
+
+### Common Patterns
+```bash
+# Simple aspect ratio conversion
+--aspect-ratio 9:16
+
+# Remove edge + aspect ratio + alignment
+--aspect-ratio 9:16 --crop-x 20% --crop-align-x left
+
+# Full control with scaling
+--aspect-ratio 9:16 --crop-x 20% --crop-align-x center --max-dimension 1920
+
+# Always dry run first
+--aspect-ratio 9:16 --dry-run
+```
+
+### Errorhandling
+- Empty directories → Warns and exits gracefully
+- Corrupted videos → Logs error, continues with next file
+- Missing output directory → Creates automatically
+- Existing output files → Skips by default (use `--overwrite`)
+- Percentage > 100% → Validation error with clear message
+- Invalid dimensions → Detailed error with ffprobe suggestion
+
+### Testing
+```bash
+# Always test with dry-run first
+./scripts/video_converter.py /test/path --aspect-ratio 9:16 --dry-run
+
+# Test single directory before recursive
+./scripts/video_converter.py /test/path --aspect-ratio 9:16
+# Then add --recursive if needed
+
+# Debug for troubleshooting
+./scripts/video_converter.py /test/path --aspect-ratio 9:16 --debug
+```
