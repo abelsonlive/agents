@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "skills": {
+    "adhd": {
+      "source": "UditAkhourii/adhd",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/UditAkhourii/adhd.git",
+      "skillPath": "skills/adhd/SKILL.md",
+      "skillFolderHash": "20295ca5b738965bcae4385db387faf2bfb8fc1e",
+      "installedAt": "2026-07-22T02:07:06.997Z",
+      "updatedAt": "2026-07-22T02:07:06.997Z"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "76a98a285cb0434f3d39e1a873823556330e398b",
+      "installedAt": "2026-07-22T02:07:10.566Z",
+      "updatedAt": "2026-07-22T02:07:10.566Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "antigravity",
+    "antigravity-cli",
+    "cline",
+    "codex",
+    "cursor",
+    "deepagents",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-code-cli",
+    "opencode",
+    "warp",
+    "zed"
+  ]
+}
