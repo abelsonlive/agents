@@ -1,68 +1,81 @@
 ---
 name: homelab-deploy
 description: |
-  Deploy, restart, and inspect homelab services (home.abelson.live) from the
-  the-gibson host via the bounded deploy broker. Use when asked to deploy an
-  app, roll out a change, restart or stop a service, check what's running, or
-  read a service's logs. Only apps in the deploy catalog can be acted on; the
-  broker refuses anything else.
+  Update and deploy the homelab (home.abelson.live) from the the-gibson host.
+  Use when asked to change a service's config, add a new service, roll out an
+  update, restart/stop a service, check what's running, or read a service's
+  logs. You author changes in the repo, push them, then deploy via the broker.
 license: ISC
 ---
 
 # Homelab deploy
 
-You (Hermes) run bare-metal on **the-gibson** and drive homelab deploys through
-a single allowlisted command — the **deploy broker**. You do **not** have direct
-docker, Ansible, SSH, or vault access; the broker holds those and validates
-every request. You cannot widen your own authority.
+You (Hermes) run bare-metal on **the-gibson** and are the trusted operator of
+the `home.abelson.live` homelab. You do two things: **author changes** to the
+config repo (edit → commit → push), and **deploy** them via the deploy broker.
 
-## The one command
+The homelab is Ansible-driven: one directory per service under `compose/` (a
+`docker-compose.yml.j2` + optional `.env.j2`), a matching role under
+`ansible/roles/<svc>/`, a thin playbook `ansible/playbooks/<svc>.yml`, and
+central vars in `ansible/inventory/group_vars/all/vars.yml` (ports, the
+`caddy_services` list that drives both Caddy and Pi-hole DNS). Read
+`AGENTS.md` and `docs/` in the repo before non-trivial changes.
+
+## 1. Author changes (edit + push)
+
+Clone/refresh the repo in your workspace and push over HTTPS using your
+`GITLAB_TOKEN` (already in your environment):
+
+```bash
+cd /workspace
+if [ ! -d home.abelson.live ]; then
+  git clone "https://oauth2:${GITLAB_TOKEN}@gitlab.com/abelsonlive/home.abelson.live.git"
+fi
+cd home.abelson.live && git pull
+# ...make your edits...
+git add -A && git commit -m "clear message of what changed"
+git push origin main
+```
+
+Deploys always come from `origin/main`, so **push before you deploy** — the
+broker deploys exactly what's on `main`, never your uncommitted/unpushed work.
+
+## 2. Deploy (via the broker)
+
+The broker is the only privileged action available to you. It runs the real
+Ansible deploy as `zero-cool` (which holds the vault password + fleet SSH — you
+don't need them). Call it with:
 
 ```
 sudo -u zero-cool /usr/local/lib/hermes/hermes-broker <verb> [app] [tag]
 ```
 
-| verb | what it does | scope |
-|---|---|---|
-| `list` | print the deployable app catalog | — |
-| `status [app]` | `docker compose ps` (all, or one app) | the-gibson |
-| `logs <app> [lines]` | tail a service's container logs (default 100) | the-gibson docker apps |
-| `deploy <app> [tag]` | re-run the app's Ansible playbook (canonical deploy from origin/main) | whole fleet |
-| `restart <app>` | `docker compose restart` | the-gibson docker apps |
-| `stop <app>` | `docker compose stop` | the-gibson docker apps |
+| verb | what it does |
+|---|---|
+| `list` | list deployable playbooks (everything in the repo, minus the denylist) |
+| `status [app]` | `docker compose ps` (all the-gibson apps, or one) |
+| `logs <app> [lines]` | tail a service's container logs (default 100) |
+| `deploy <app> [tag]` | pull `origin/main` and run `ansible/playbooks/<app>.yml` |
+| `restart <app>` | `docker compose restart` (the-gibson docker apps only) |
+| `stop <app>` | `docker compose stop` (the-gibson docker apps only) |
 
-## How to use it
+Typical flow: edit + push (step 1) → `sudo -u zero-cool …/hermes-broker deploy <app>`.
+It streams the Ansible run and prints SUCCESS or FAILURE.
 
-1. **Always `list` first** if unsure whether an app is deployable — the broker
-   rejects anything not in the catalog, so guessing wastes a turn.
-2. **`deploy` is the canonical way to roll out a change.** It fast-forwards the
-   deploy checkout to `origin/main` and re-runs the playbook, so make sure the
-   change is committed and pushed to `main` first — `deploy` never picks up
-   uncommitted or unpushed work. It streams the Ansible run and reports SUCCESS
-   or FAILURE at the end.
-3. `restart`/`stop`/`logs` only work for docker apps on the-gibson. For pi5
-   services (caddy, pihole, wireguard, stremio, …) use `deploy`.
-4. **Deploying `hermes` (yourself)** works, but it restarts your own services —
-   the current chat/session will drop. The deploy itself finishes in the
-   background (its own systemd unit); confirm afterwards with a fresh `status`.
-5. On failure the broker prints the transient unit name; you can read more with
-   `sudo -u zero-cool journalctl -u <unit>` — but do **not** try other sudo
-   commands: only `hermes-broker` is permitted, everything else is denied.
+## Notes & boundaries
 
-## Examples
-
-```
-sudo -u zero-cool /usr/local/lib/hermes/hermes-broker list
-sudo -u zero-cool /usr/local/lib/hermes/hermes-broker status
-sudo -u zero-cool /usr/local/lib/hermes/hermes-broker logs immich 200
-sudo -u zero-cool /usr/local/lib/hermes/hermes-broker deploy n8n
-sudo -u zero-cool /usr/local/lib/hermes/hermes-broker restart navidrome
-```
-
-## Boundaries (do not fight these)
-
-- Only catalog apps; only these verbs; only via `sudo -u zero-cool`.
-- You cannot read the vault password, the deploy SSH key, or `/etc/hermes/*`,
-  and cannot write the deploy checkout at `/srv/homelab`. That is intentional.
-- To make an app deployable that isn't in `list`, ask a human to add it to
-  `hermes_deploy_catalog` (roles/hermes_deploy_broker) — you cannot self-grant.
+- **Adding a NEW service**: create its `compose/<svc>/`, `ansible/roles/<svc>/`,
+  `ansible/playbooks/<svc>.yml`, its `ports:` entry and `caddy_services` entry
+  in `vars.yml`, commit + push, then `deploy <svc>` (and `deploy caddy` +
+  `deploy pihole` so the new subdomain routes + resolves).
+- **Denylisted (won't deploy — run these by hand)**: `storage` (formats drives)
+  and `bootstrap` (re-bases the OS). Everything else in the repo is fair game.
+- **pi5 services** (caddy, pihole, wireguard, stremio, …): `deploy` works;
+  `restart`/`stop`/`logs` don't (no local compose file) — use `deploy`.
+- **Deploying `hermes` (yourself)** restarts your own services — the current
+  session drops, but the deploy finishes in its own unit; reconnect and
+  `status` to confirm.
+- **Secrets**: values in the Ansible vault are edited with `make edit-vault`
+  (needs the vault password, which you don't hold — ask a human for vault
+  changes). Non-secret config you can edit + push yourself.
+- Only `hermes-broker` is permitted via sudo; any other `sudo` is denied.
