@@ -20,7 +20,7 @@ Every command takes one, and the split governs every choice below:
 |---|---|---|
 | commands | `schedule` `find` `show` | `book` `waitlist` `cancel` `mine` `probe` |
 | how | front API + Pike13's own public `client_id` | Playwright driving the real booking page |
-| needs | nothing | `PIKE13_EMAIL`, `PIKE13_PASSWORD` |
+| needs | nothing | `PIKE13_USERNAME`, `PIKE13_PASSWORD` |
 | cost | instant | ~5s browser start |
 
 Stay **keyless** for anything you're only reading — "what's on Thursday", "is
@@ -99,6 +99,19 @@ The two things that genuinely help: enter the waitlist as soon as the class
 appears, and watch for cancellations, since a freed spot may return to open
 capacity where `book` can take it.
 
+## Auto-book cron
+
+`/opt/data/scripts/pike13-auto-book.py` (mirrored to Hermes `~/./scripts/`) runs via cron
+job `pike13-auto-book` (job id `efdb0aea2b7f`) **Mon/Wed/Fri 9AM ET** (`0 9 * * 1,3,5`).
+It books the 9AM `STRENGTH & CONDITIONING` occurrence exactly 14 days out — the day
+Pike13 opens the slot. Logic: parse `schedule +14d --json` for a 9AM ET (13:00Z EDT /
+14:00Z EST) STRENGTH & CONDITIONING occurrence; if open → `book --yes`; if full →
+`waitlist --yes`; skip if already enrolled (checked via `mine --json` `occurrence_id`s);
+no 9AM class that day → prints NO CLASS (the notify path). Stdout is delivered to the
+origin chat verbatim (no_agent cron). Rewrites of the script must be copied to
+`/mnt/nvme/homelab/hermes/data/home/scripts/pike13-auto-book.py` — the cron resolves
+`~/./scripts/` to that path.
+
 ## Gotchas
 
 - **Class names are inconsistent in the real data** — `STRENGTH (BARBELL)`,
@@ -129,6 +142,17 @@ capacity where `book` can take it.
   failing with a sign-in error means the credentials are wrong, not the cookie.
 - The gym runs near capacity — most classes are already `FULL, waitlist open`.
   Expect waitlisting to be the common path, not the exception.
+- **`mine --json` outputs `occurrence_id` not `id`.** If writing a script that
+  cross-references `schedule --json` ids with `mine --json` data, parse the
+  `occurrence_id` field — the keys differ between the two endpoints.
+- **`schedule +Nd` requires the `schedule` subcommand.** `+14d` alone fails
+  (it's not a top-level command). Always use `schedule +14d`.
+- **Env var name: `PIKE13_USERNAME`.** The script checks `PIKE13_USERNAME` first,
+  then `PIKE13_EMAIL` as a fallback. The homelab has `PIKE13_USERNAME` set.
+- **Cron scripts go to `~/./scripts/`.** For Hermes cron jobs with `no_agent=true`,
+  the script path must be relative and live in `~/./scripts/` which resolves to
+  `/mnt/nvme/homelab/hermes/data/home/scripts/` on this machine — not the
+  skill's own `scripts/` directory and not `/opt/data/scripts/`.
 
 Deeper API detail — endpoint catalog, eligibility codes, rate limits, and the
 OAuth route that would remove Playwright entirely — is in
