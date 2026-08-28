@@ -330,7 +330,7 @@ ACTION_RE = re.compile(
     r"(add to waitlist|join waitlist|sign up|enroll|register|reserve|book)", re.I)
 # Enrolling is a workflow: the first click opens a confirmation step whose
 # submit is "Finish". Anchored so the sibling "Cancel" can never match.
-CONFIRM_RE = re.compile(r"^(finish|confirm|complete|done|submit|check ?out)\b", re.I)
+CONFIRM_RE = re.compile(r"^(finish|confirm|complete|done|submit|check ?out|join waitlist)\b", re.I)
 
 
 def _action_links(page) -> list[tuple[str, bool]]:
@@ -569,9 +569,10 @@ def cmd_cancel(a) -> None:
             raise SystemExit("pike13: no cancel control on that visit page "
                              "(already cancelled, or past the cutoff)")
         link.click()
-        # the control opens a confirm modal whose submit repeats the label
+        # the control opens a confirm modal whose submit may say "Cancel Visit"
+        # or "Late Cancel" depending on cutoff. Match by class, not text.
         try:
-            page.get_by_text("Cancel Visit", exact=True).last.click(timeout=5000)
+            page.locator("a.modal_confirm").first.click(timeout=5000)
         except Exception:
             pass
         page.wait_for_load_state("domcontentloaded")

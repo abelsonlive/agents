@@ -133,11 +133,12 @@ origin chat verbatim (no_agent cron). Rewrites of the script must be copied to
   `Plan or pass required to join waitlist`. `probe <id>` prints them with
   enabled/disabled, diagnosing a refused write in one call. Quote the page's
   wording back to the user rather than inferring a cause.
-- **Enrolling is two clicks, not one.** `Enroll` only opens a confirmation
-  workflow whose submit is `Finish`; stopping after the first click leaves the
-  seat unbooked while the page looks like success. The script drives the
-  workflow to the end and warns if the URL still says `workflow`, which is
-  exactly the case `mine` exists to catch.
+- **Enrolling is two clicks, not one (and waitlisting is too).** `Enroll`
+  opens a confirmation workflow whose submit is `Finish`; `Join Waitlist` opens
+  one whose submit is also `Join Waitlist`. The `CONFIRM_RE` regex covers both
+  — if Pike13 ships a new confirm button label, `_write_action` will click the
+  action but stop mid-workflow, and `mine` catches it. Add the new label to
+  `CONFIRM_RE` in the script.
 - **A stale session re-authenticates silently** from the env vars, so a write
   failing with a sign-in error means the credentials are wrong, not the cookie.
 - The gym runs near capacity — most classes are already `FULL, waitlist open`.
