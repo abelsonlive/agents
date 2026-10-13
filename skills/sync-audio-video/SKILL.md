@@ -38,6 +38,9 @@ the video.
    - `--fix-drift` — resample the external audio to cancel clock drift
      (use when drift > ~20ms, i.e. half a 24fps frame; common for >10-min
      recordings from separate devices).
+   - `--trim-to-audio` — cut the video to start and end exactly where the
+     external audio does (e.g. "start on the 1, run until the track stops").
+     Re-encodes the video for a frame-accurate cut.
    - `--keep-camera-audio` — keep the original audio as a second track.
    - `--offset S` — skip analysis and use a known offset.
 4. Report to the user: the offset (and direction), confidence, drift, the
@@ -51,6 +54,14 @@ the video.
   smears and a repeated musical phrase can win (seen: +7.8s vs true +0.44s).
   The script detects this and uses the windowed estimate. Mention it if it
   fires.
+- **Drift windows must sit inside the overlap.** If the external track is
+  shorter than the video, a window past its end correlates against nothing
+  and reports huge fake drift. The script places windows within the
+  overlapping span.
+- **The user's sense of "where it starts" can be a beat off.** If they say
+  the recording starts on a particular hit, trust the correlation over the
+  description, and tell them what the camera audio shows (e.g. a pickup
+  kick one beat before the WAV begins).
 - **Negative offset** (the recording started before the video): handled by
   trimming the external track's head, not by delaying the video.
 - **Inverted polarity** is common (negative correlation peak) and harmless;

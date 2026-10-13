@@ -43,12 +43,21 @@ def offset(video_a, ext, sr, start=0):
     return (start + lag) / sr, conf
 
 
-def windowed_offsets(video_a, ext, sr, dur):
-    """Offset measured in an early and a late window of the video, for drift."""
-    win = min(20.0, dur / 4)
+def overlap(d, vdur, edur):
+    """Video-time span where both tracks have audio, given offset d."""
+    return max(0.0, d), min(vdur, d + edur)
+
+
+def windowed_offsets(video_a, ext, sr, lo, hi):
+    """Offset in an early and a late window of the overlap [lo, hi], for drift.
+
+    Windows must stay inside the overlap: outside it the video audio has no
+    counterpart in ext and the correlation peak is noise."""
+    span = hi - lo
+    win = min(20.0, span / 4)
     res = []
     for frac in (0.1, 0.75):
-        s = int(dur * frac * sr)
+        s = int((lo + span * frac) * sr)
         seg = video_a[s:s + int(win * sr)]
         if len(seg) < sr:  # too short to say anything
             return None
@@ -67,7 +76,7 @@ def analyze(video, audio, sr, label=""):
     va, ea = decode(video, sr), decode(audio, sr)
     d, conf = offset(va, ea, sr)
     print(f"{label}offset={d:+.4f}s  confidence={conf:.0f}x")
-    w = windowed_offsets(va, ea, sr, len(va) / sr)
+    w = windowed_offsets(va, ea, sr, *overlap(d, len(va) / sr, len(ea) / sr))
     drift = None
     if w:
         (t0, d0, c0), (t1, d1, c1) = w
@@ -86,7 +95,7 @@ def analyze(video, audio, sr, label=""):
         if abs(drift[0]) > 0.02:
             print(f"{label}note: drift exceeds half a frame — consider --fix-drift",
                   file=sys.stderr)
-    return d, conf, drift
+    return d, conf, drift, len(va) / sr, len(ea) / sr
 
 
 def main():
@@ -101,6 +110,9 @@ def main():
                    help="skip analysis and use this offset (seconds)")
     p.add_argument("--fix-drift", action="store_true",
                    help="resample external audio to cancel measured drift")
+    p.add_argument("--trim-to-audio", action="store_true",
+                   help="cut the video to start/end exactly where the external "
+                        "audio does (re-encodes video)")
     p.add_argument("--keep-camera-audio", action="store_true",
                    help="also keep the original camera audio as a 2nd track")
     p.add_argument("--sr", type=int, default=8000,
@@ -109,8 +121,9 @@ def main():
 
     if a.offset is not None:
         d, conf, drift = a.offset, None, None
+        vdur, edur = probe_duration(a.video), probe_duration(a.audio)
     else:
-        d, conf, drift = analyze(a.video, a.audio, a.sr)
+        d, conf, drift, vdur, edur = analyze(a.video, a.audio, a.sr)
         if conf < 10:
             print("warning: low confidence (<10x) — the camera may not have "
                   "captured the same sound; check the result by ear/eye.",
@@ -133,27 +146,47 @@ def main():
             capture_output=True, text=True, check=True).stdout)
         chain.append(f"asetrate={sr_in / ratio:.4f},aresample={sr_in}")
         d = drift[2]
+        edur *= ratio
         print(f"drift correction: speed ratio {1/ratio:.7f}, start offset {d:+.4f}s")
-    if d >= 0:
-        chain.append(f"adelay={d*1000:.2f}:all=1")
-    else:
-        chain.append(f"atrim=start={-d:.4f},asetpts=PTS-STARTPTS")
+    lo, hi = overlap(d, vdur, edur)
+    # In trim mode the output starts at video time lo, so the audio needs no
+    # delay when d >= 0; otherwise align it to video t=0 as usual.
+    shift = d - lo if a.trim_to_audio else d
+    if shift > 0:
+        chain.append(f"adelay={shift*1000:.2f}:all=1")
+    elif shift < 0:
+        chain.append(f"atrim=start={-shift:.4f},asetpts=PTS-STARTPTS")
     chain.append("apad")
     fc = f"[1:a]{','.join(chain)}[a]"
+    vmap, vcodec, tail = "0:v:0", ["-c:v", "copy"], ["-shortest"]
+    if a.trim_to_audio:
+        # Frame-accurate cut needs a re-encode; video frames snap to the
+        # next frame boundary (< 1 frame), audio keeps its first transient.
+        fc += f";[0:v]trim=start={lo:.4f}:end={hi:.4f},setpts=PTS-STARTPTS[v]"
+        vmap = "[v]"
+        vcodec = ["-c:v", "libx264", "-crf", "14", "-preset", "slow",
+                  "-pix_fmt", "yuv420p"]
+        tail = ["-t", f"{hi - lo:.4f}"]
+        print(f"trim: video {lo:.4f}s -> {hi:.4f}s ({hi - lo:.3f}s)")
 
     cmd = ["ffmpeg", "-v", "error", "-y", "-i", a.video, "-i", a.audio,
-           "-filter_complex", fc, "-map", "0:v:0", "-map", "[a]"]
+           "-filter_complex", fc, "-map", vmap, "-map", "[a]"]
     if a.keep_camera_audio:
         cmd += ["-map", "0:a:0"]
-    cmd += ["-c:v", "copy", *acodec, "-shortest", out]
+    cmd += [*vcodec, *acodec, *tail, out]
     print("$ " + " ".join(f"'{x}'" if " " in x or "'" in x else x for x in cmd))
     subprocess.run(cmd, check=True)
 
     # Verify: synced track vs original camera audio should now be ~0.
     va = decode(a.video, a.sr)
     sa = decode(out, a.sr)
+    if a.trim_to_audio:  # compare against the same slice of camera audio
+        va = va[int(lo * a.sr):int(hi * a.sr)]
+        vlo, vhi = 0.0, hi - lo
+    else:
+        vlo, vhi = lo, hi
     v, vconf = offset(va, sa, a.sr)
-    w = windowed_offsets(va, sa, a.sr, len(va) / a.sr)
+    w = windowed_offsets(va, sa, a.sr, vlo, vhi)
     worst = max(abs(x[1]) for x in w) if w else abs(v)
     print(f"verify: whole-track={v*1000:+.1f}ms (conf {vconf:.0f}x)  "
           f"worst window={worst*1000:.1f}ms")
