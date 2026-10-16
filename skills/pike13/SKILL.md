@@ -73,6 +73,7 @@ python3 $S find "BARBELL" -d 14 --open    # next 2 weeks, open slots only
 python3 $S show 270871754                 # one class in detail
 uv run $S book 286763594 --yes            # spends a credit
 uv run $S waitlist 270871754 --yes        # when it's full
+uv run $S leave-waitlist 270871754 --yes  # leave a waitlist
 uv run $S mine                            # bookings, waitlist, visits left
 uv run $S cancel 677313291 --yes          # by visit id, from `mine`
 ```
@@ -98,6 +99,28 @@ briefly) → `enrolled`. A `pending` entry is a countdown: surface it promptly.
 The two things that genuinely help: enter the waitlist as soon as the class
 appears, and watch for cancellations, since a freed spot may return to open
 capacity where `book` can take it.
+
+### Leaving a waitlist
+
+The `leave-waitlist` command removes you from a class waitlist by occurrence id:
+
+```bash
+uv run scripts/pike13.py leave-waitlist <occurrence_id> --yes
+```
+
+The script navigates to the event page and clicks the `.remove-from-waitlist`
+link (a `data-method="delete"` link outside `.actions`, so `probe` won't
+show it in the actions list). The link triggers a confirmation modal with
+`data-confirm-submit="Remove"` — the script matches that text and clicks the
+confirm button.
+
+Get the occurrence id from `mine --json` (the `occurrence_id` field under
+`waitlist`), or by checking the class schedule.
+
+**Pro tip**: if `probe` shows `[disabled] Already waitlisted` on the event
+page, the remove control is still there — it's just outside `.actions`. Use
+`leave-waitlist` directly; it looks for `.remove-from-waitlist` anywhere on the
+page.
 
 ## Auto-book cron
 
@@ -150,10 +173,11 @@ origin chat verbatim (no_agent cron). Rewrites of the script must be copied to
   (it's not a top-level command). Always use `schedule +14d`.
 - **Env var name: `PIKE13_USERNAME`.** The script checks `PIKE13_USERNAME` first,
   then `PIKE13_EMAIL` as a fallback. The homelab has `PIKE13_USERNAME` set.
-- **Cron scripts go to `~/./scripts/`.** For Hermes cron jobs with `no_agent=true`,
-  the script path must be relative and live in `~/./scripts/` which resolves to
-  `/mnt/nvme/homelab/hermes/data/home/scripts/` on this machine — not the
-  skill's own `scripts/` directory and not `/opt/data/scripts/`.
+- **Cron scripts go to `~/./scripts/` (resolves to `/mnt/nvme/homelab/hermes/data/scripts/`).**
+  For Hermes cron jobs with `no_agent=true`, the script path must be relative and
+  the file must exist under `/mnt/nvme/homelab/hermes/data/scripts/` — NOT the
+  skill's own `scripts/` directory and NOT `…/data/home/scripts/` (observed:
+  scheduler reports "Script not found" when the file only lives in home/scripts).
 
 Deeper API detail — endpoint catalog, eligibility codes, rate limits, and the
 OAuth route that would remove Playwright entirely — is in
