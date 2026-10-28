@@ -581,6 +581,52 @@ def cmd_cancel(a) -> None:
     print("\nCancel submitted — run `pike13.py mine` to confirm it's gone.")
 
 
+# ------------------------------------------------------------- leave waitlist
+
+def cmd_leave_waitlist(a) -> None:
+    """Remove yourself from a class waitlist by occurrence id (from `mine`)."""
+    creds()
+    with _play()() as p:
+        b, ctx = _context(p, a.headed)
+        page = ctx.new_page()
+        page.goto(f"{base()}/e/{a.id}", wait_until="domcontentloaded")
+
+        rm = page.locator(".remove-from-waitlist")
+        if not rm.count():
+            b.close()
+            raise SystemExit(f"pike13: not on the waitlist for class {a.id}, "
+                             "or remove control not found.")
+        submit = rm.get_attribute("data-confirm-submit") or "Remove"
+        print(f"Remove from waitlist for {a.id}")
+        if not a.yes:
+            b.close()
+            print("\nThis would remove you from the waitlist for the class above.")
+            print("Re-run with --yes to go through with it.")
+            return
+
+        rm.click()
+        page.wait_for_load_state("domcontentloaded")
+        time.sleep(1.5)
+        confirm = page.locator(f".modal_confirm:has-text('{submit}')")
+        if confirm.count():
+            confirm.click()
+            page.wait_for_load_state("domcontentloaded")
+            time.sleep(2)
+            print(f"Removed from waitlist.")
+        else:
+            confirm = page.locator(".modal_confirm.fa-check")
+            if confirm.count():
+                confirm.click()
+                page.wait_for_load_state("domcontentloaded")
+                time.sleep(2)
+                print("Removed from waitlist.")
+            else:
+                b.close()
+                raise SystemExit("pike13: could not find confirm button in modal.")
+        b.close()
+    print("\nDone — run `pike13.py mine` to verify.")
+
+
 # -------------------------------------------------------------------- main
 
 def main() -> None:
@@ -625,6 +671,11 @@ def main() -> None:
 
     s = add("mine", cmd_mine, "what you're signed up for (needs login)")
     s.add_argument("--json", action="store_true")
+    s.add_argument("--headed", action="store_true")
+
+    s = add("leave-waitlist", cmd_leave_waitlist, "leave a class waitlist by occurrence id (needs login; requires --yes)")
+    s.add_argument("id")
+    s.add_argument("--yes", action="store_true", help="actually do it")
     s.add_argument("--headed", action="store_true")
 
     s = add("cancel", cmd_cancel, "cancel a booked visit by visit id (requires --yes)")

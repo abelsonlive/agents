@@ -1,20 +1,33 @@
 #!/usr/bin/env python3
-"""Auto-book 9AM STRENGTH & CONDITIONING 14 days out. Run MWF at 9AM ET."""
+"""Auto-book Fuerza classes 14 days out (window-open day).
+
+Target schedule (weekly):
+  Mon/Wed/Fri 10:00 AM ET  -> STRENGTH (BARBELL)
+  Thu/Sun 9:00 AM ET       -> STRENGTH & CONDITIONING
+Run daily at 9AM ET. Rest days (Tue/Sat targets) stay silent.
+"""
 
 import json
 import os
 import subprocess
 import sys
-from datetime import date, timedelta, timezone
+from datetime import date, timedelta
 
 SCRIPT = "/mnt/nvme/homelab/hermes/agents/skills/pike13/scripts/pike13.py"
-TARGET_NAME = "STRENGTH & CONDITIONING"
-TARGET_HOUR_ET = 9  # 9AM ET
 FOURTEEN_DAYS = timedelta(days=14)
+
+# weekday (Mon=0) -> (kind, hour_et)
+# kind "strength" = STRENGTH (BARBELL) at 10AM; "sc" = STRENGTH & CONDITIONING at 9AM
+PLAN = {
+    0: ("strength", 10),  # Mon
+    2: ("strength", 10),  # Wed
+    4: ("strength", 10),  # Fri
+    3: ("sc", 9),         # Thu
+    6: ("sc", 9),         # Sun
+}
 
 
 def et_now() -> date:
-    """Today's date in America/New_York."""
     env = os.environ.copy()
     env["TZ"] = "America/New_York"
     return date.today()
@@ -35,27 +48,31 @@ def run_pike13(*args: str) -> dict:
     return json.loads(r.stdout)
 
 
-def find_target_class(classes: list[dict]) -> dict | None:
-    """Find STRENGTH & CONDITIONING at 9AM ET (13:00 UTC in EDT, 14:00 in EST)."""
+def find_target_class(classes: list[dict], kind: str, hour_et: int) -> dict | None:
+    """Find the target class at the target hour.
+
+    hour_et 9 -> UTC 13 (EDT) or 14 (EST); hour_et 10 -> UTC 14 (EDT) or 15 (EST).
+    """
+    utc_hours = {hour_et + 4, hour_et + 5}  # EDT / EST
     for c in classes:
-        name = c.get("name", "").strip()
-        if name != TARGET_NAME:
-            continue
-        start = c["start_at"]  # "2026-09-09T13:00:00Z"
-        # EDT is UTC-4 → 9AM ET = 13:00Z. EST is UTC-5 → 9AM ET = 14:00Z.
-        # Both hit +d for the month (Sep = EDT = -4).
-        # Extract hour from ISO: T13:00:00Z
+        name = c.get("name", "").strip().upper()
+        if kind == "strength":
+            if "BARBELL" not in name or "CONDITIONING" in name:
+                continue
+        else:  # "sc"
+            if "CONDITIONING" not in name:
+                continue
+        start = c.get("start_at", "")
         try:
             hour_utc = int(start.split("T")[1].split(":")[0])
         except (IndexError, ValueError):
             continue
-        if hour_utc in (13, 14):  # 9AM EDT or EST
+        if hour_utc in utc_hours:
             return c
     return None
 
 
 def get_enrolled_ids() -> set[int]:
-    """Return set of occurrence ids already booked from `mine` output."""
     try:
         data = run_pike13("mine", "--json")
     except Exception:
@@ -69,84 +86,66 @@ def get_enrolled_ids() -> set[int]:
     return {int(e.get("occurrence_id", 0)) for e in upcoming if isinstance(e, dict) and e.get("occurrence_id")}
 
 
+def write_action(action: str, cid: int):
+    result = subprocess.run(
+        ["uv", "run", SCRIPT, action, str(cid), "--yes"],
+        capture_output=True, text=True, timeout=120,
+        env={**os.environ,
+             "PIKE13_USERNAME": os.environ["PIKE13_USERNAME"],
+             "PIKE13_PASSWORD": os.environ["PIKE13_PASSWORD"],
+             "PIKE13_DOMAIN": os.environ.get("PIKE13_DOMAIN", "fuerzatrainingsystems")},
+    )
+    print((result.stdout + result.stderr).strip(), flush=True)
+    return result.returncode
+
+
 def main():
     today = et_now()
     target_day = today + FOURTEEN_DAYS
-    target_date_str = target_day.strftime("%Y-%m-%d")
-    target_weekday = target_day.strftime("%A")
+    target_wd = target_day.weekday()
 
-    print(f"Today: {today} ({today.strftime('%A')})", flush=True)
-    print(f"Target: {target_date_str} ({target_weekday})", flush=True)
+    if target_wd not in PLAN:
+        sys.exit(0)  # rest day (Tue/Sat target) — silent
 
-    # Check if already booked
+    kind, hour_et = PLAN[target_wd]
+    cls_label = ("STRENGTH (BARBELL)" if kind == "strength" else "STRENGTH & CONDITIONING")
+
+    print(f"Target: {target_day} ({target_day.strftime('%A')}) — {hour_et}AM {cls_label}", flush=True)
+
     enrolled = get_enrolled_ids()
-    if enrolled:
-        print(f"Already booked: {len(enrolled)} upcoming classes", flush=True)
-
     classes = run_pike13("schedule", f"+{FOURTEEN_DAYS.days}d", "--json")
 
-    target = find_target_class(classes)
+    target = find_target_class(classes, kind, hour_et)
     if target is None:
         print(
-            f"NO CLASS: No {TARGET_NAME} at {TARGET_HOUR_ET}AM ET on "
-            f"{target_weekday}, {target_date_str}. Skipping.",
+            f"NO CLASS: no {cls_label} at {hour_et}AM ET on "
+            f"{target_day.strftime('%A')}, {target_day}. Skipping.",
             flush=True,
         )
         sys.exit(0)
 
     cid = target["id"]
     if cid in enrolled:
-        print(
-            f"ALREADY BOOKED: {TARGET_NAME} at {TARGET_HOUR_ET}AM ET on "
-            f"{target_weekday}, {target_date_str} (id={cid}). Skipping.",
-            flush=True,
-        )
+        print(f"ALREADY BOOKED: {cls_label} {hour_et}AM on {target_day} (id={cid}). Skipping.", flush=True)
         sys.exit(0)
-    cname = target["name"]
+
     full = target.get("full", True)
     cap_rem = target.get("capacity_remaining", 0)
     waitlist_full = target.get("waitlist", {}).get("full", True)
 
-    print(f"Found: {cname} id={cid} full={full} cap={cap_rem} wl_full={waitlist_full}", flush=True)
+    print(f"Found: {cls_label} id={cid} full={full} cap={cap_rem} wl_full={waitlist_full}", flush=True)
 
     if not full and cap_rem > 0:
-        print(f"Booking class {cid} …", flush=True)
-        result = subprocess.run(
-            ["uv", "run", SCRIPT, "book", str(cid), "--yes"],
-            capture_output=True, text=True, timeout=120,
-            env={**os.environ,
-                 "PIKE13_USERNAME": os.environ["PIKE13_USERNAME"],
-                 "PIKE13_PASSWORD": os.environ["PIKE13_PASSWORD"],
-                 "PIKE13_DOMAIN": os.environ.get("PIKE13_DOMAIN", "fuerzatrainingsystems")},
-        )
-        output = (result.stdout + result.stderr).strip()
-        if result.returncode == 0:
-            print(f"BOOKED {cid}: {target_date_str} 9AM {TARGET_NAME}", flush=True)
+        print(f"Booking {cid} …", flush=True)
+        rc = write_action("book", cid)
+        if rc == 0:
+            print(f"BOOKED {cid}: {target_day} {hour_et}AM {cls_label}", flush=True)
         else:
-            print(f"BOOK FAILED (rc={result.returncode}):\n{output}", flush=True)
-            # Try waitlist as fallback
-            print(f"Trying waitlist for {cid} …", flush=True)
-            wl = subprocess.run(
-                ["uv", "run", SCRIPT, "waitlist", str(cid), "--yes"],
-                capture_output=True, text=True, timeout=120,
-                env={**os.environ,
-                     "PIKE13_USERNAME": os.environ["PIKE13_USERNAME"],
-                     "PIKE13_PASSWORD": os.environ["PIKE13_PASSWORD"],
-                     "PIKE13_DOMAIN": os.environ.get("PIKE13_DOMAIN", "fuerzatrainingsystems")},
-            )
-            print((wl.stdout + wl.stderr).strip(), flush=True)
-
+            print(f"Book failed — trying waitlist for {cid} …", flush=True)
+            write_action("waitlist", cid)
     elif full and not waitlist_full:
         print(f"Class full — waitlisting {cid} …", flush=True)
-        result = subprocess.run(
-            ["uv", "run", SCRIPT, "waitlist", str(cid), "--yes"],
-            capture_output=True, text=True, timeout=120,
-            env={**os.environ,
-                 "PIKE13_USERNAME": os.environ["PIKE13_USERNAME"],
-                 "PIKE13_PASSWORD": os.environ["PIKE13_PASSWORD"],
-                 "PIKE13_DOMAIN": os.environ.get("PIKE13_DOMAIN", "fuerzatrainingsystems")},
-        )
-        print((result.stdout + result.stderr).strip(), flush=True)
+        write_action("waitlist", cid)
     else:
         print(f"FULL & WAITLIST FULL — nothing to do for {cid}", flush=True)
 

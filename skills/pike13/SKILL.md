@@ -125,12 +125,13 @@ page.
 ## Auto-book cron
 
 `/opt/data/scripts/pike13-auto-book.py` (mirrored to Hermes `~/./scripts/`) runs via cron
-job `pike13-auto-book` (job id `efdb0aea2b7f`) **Mon/Wed/Fri 9AM ET** (`0 9 * * 1,3,5`).
-It books the 9AM `STRENGTH & CONDITIONING` occurrence exactly 14 days out — the day
-Pike13 opens the slot. Logic: parse `schedule +14d --json` for a 9AM ET (13:00Z EDT /
-14:00Z EST) STRENGTH & CONDITIONING occurrence; if open → `book --yes`; if full →
+job `pike13-auto-book` (job id `efdb0aea2b7f`) **daily 10AM ET** (`0 10 * * *`), so the 10AM strength class is already bookable at tick time. Target schedule:
+Mon/Wed/Fri books the 10AM `STRENGTH (BARBELL)` occurrence exactly 14 days out; Thu/Sun books
+the 9AM `STRENGTH & CONDITIONING` occurrence exactly 14 days out (Tue/Sat: rest days, silent).
+Logic: parse `schedule +14d --json` for the target occurrence (match `BARBELL` fragment /
+`CONDITIONING`, hour_utc = et_hour+4 or +5 for EDT/EST); if open → `book --yes`; if full →
 `waitlist --yes`; skip if already enrolled (checked via `mine --json` `occurrence_id`s);
-no 9AM class that day → prints NO CLASS (the notify path). Stdout is delivered to the
+no matching class that day → prints NO CLASS (the notify path). Stdout is delivered to the
 origin chat verbatim (no_agent cron). Rewrites of the script must be copied to
 `/mnt/nvme/homelab/hermes/data/home/scripts/pike13-auto-book.py` — the cron resolves
 `~/./scripts/` to that path.

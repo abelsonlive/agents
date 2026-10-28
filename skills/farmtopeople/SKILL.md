@@ -3,9 +3,10 @@ name: farmtopeople
 description: |
   Manage the Farm to People grocery cart — search the catalog, check what's in
   season and on sale, add and remove items, and load a default "usual" cart.
+  Also handles refund requests for damaged/spoiled items.
   Use when the user asks what's available or in season at Farm to People, wants
   something added to or taken out of their cart, asks what's in the cart or what
-  they usually order, or says to add the usual.
+  they usually order, or says to add the usual, or reports a damaged item.
 license: ISC
 ---
 
@@ -145,6 +146,50 @@ and ranks sale items first — or, with `--mine`, the user's own repeat buys fir
 
 `-c/--category` overrides the pool with any category slug (`citrus`, `greens`,
 `tree-fruit`, `roots-tubers`, `bakery`, …).
+
+## Refunds & damaged items
+
+Farm to People's FAQ says: *"If an item is broken/spoiled/etc., please take a photo so we can inform the maker, farmer, and/or packing team."*
+
+**Process:**
+
+1. **Check the order.** Run `cart --json` to get the customer ID (`CUST-XXXXXXX`), order name (`OR-XXXXXXX`), delivery date, and the specific items with their codes and prices.
+
+2. **Get the FAQ policy** from the site if needed: the "Something is wrong with my order. What can I do?" accordion says to email photos to **questions@farmtopeople.com** or text to **(347) 455-0387**.
+
+3. **Compose an email via himalaya** (requires the himalaya skill and ProtonMail Bridge configured for brian@abelson.live). Use MML syntax for photo attachments:
+
+```bash
+cat << 'EOF' | himalaya template send
+From: Brian Abelson <brian@abelson.live>
+To: questions@farmtopeople.com
+Subject: Damaged items - <description> (Order <order-name>)
+
+Account: <CUST-ID>
+Order: <order-name> (delivered <date>)
+
+<description of what's wrong>
+
+1. <item name> (<item-code>) - $<price>
+2. <item name> (<item-code>) - $<price>
+
+Photos of the damaged items attached as received.
+
+Please advise on credit/refund.
+
+Thanks,
+Brian
+
+<#multipart type=mixed>
+<#part type=image/jpeg filename=<path-to-photo-1>><#/part>
+<#part type=image/jpeg filename=<path-to-photo-2>><#/part>
+<#/multipart>
+EOF
+```
+
+4. **Verify delivery** by checking `Message successfully sent!` in the output.
+
+Photos the user sends should be found in `/opt/data/cache/images/` — check the filenames from the user's messages or image URLs.
 
 ## Gotchas
 
