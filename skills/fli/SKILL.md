@@ -36,6 +36,8 @@ Done when every airport pair and date the user named has returned rows or a conf
 ## Limits
 
 - **No refundable-fare filter, no bag filter, no Basic-Economy exclusion.** Prices are the lowest fare, usually Main Basic. Refundable fares need a quote on the airline's site; say so.
+- **Google ≠ the airline's site.** Google showed Delta JFK→LAX Dec 31 at $229, yet delta.com's round-trip grid (2 pax) showed Dec 30–31 "Not Offered" and $847–$1,037 elsewhere. Treat fli prices as a scouting pass; confirm on the airline's own site before recommending a date. Ask the user to check the airline grid, or test one-way searches there.
+- **Lap infants return zero rows.** `--infants-on-lap 1` gave 0 Delta results on every date; adults-only shows the schedule. This is a known fli limit, not an availability signal.
 - **Prices drift ~$10** between pulls and from the Google Flights web UI.
 - **Empty result = no nonstop service** on that route and date, which is an answer. (JFK/EWR→BUR returned zero nonstops Dec 28–31 and Jan 8–9, 2026/27; JetBlue's JFK–BUR is summer seasonal.)
 - **~20–45 itineraries per search**, and `dates` costs one fetch per date (max 93).
@@ -45,12 +47,13 @@ Done when every airport pair and date the user named has returned rows or a conf
 ## Install / repair
 
 ```
-uv venv /opt/data/venvs/fli && uv pip install --python /opt/data/venvs/fli/bin/python flights click
+uv venv /opt/data/venvs/fli && uv pip install --python /opt/data/venvs/fli/bin/python "git+https://github.com/punitarani/fli.git" click
 ```
-`click` is not pulled in by `flights`; a `ModuleNotFoundError: click` means it is missing. If searches return HTTP 200 with no rows across the board, Google changed its page format — check the repo's issues and upgrade (`uv pip install -U flights`).
+Install from GitHub, not PyPI: PyPI `flights` 0.9.0 has **no `--passengers`/`--infants-*` flags** (`No such option: --passengers`); GitHub is 0.10.0+. `click` is not pulled in either; `ModuleNotFoundError: click` means it is missing. If searches return HTTP 200 with no rows across the board, Google changed its page format — check the repo's issues and upgrade (`uv pip install -U flights`).
 
 ## Log
 
 Append dated findings here (new flags, route quirks, failures and fixes).
 
 - 2026-10: first use, NYC↔LA holiday trip. Sweep over JFK/EWR→LAX confirmed Dec 31 departures far cheaper than Dec 28–30 (Delta $229 vs $419–539).
+- 2026-10: Delta site grid (2 pax round trip) showed Dec 30–31 "Not Offered" while Google showed cheap Dec 31 one-ways. Cheapest on delta.com: Fri Jan 1 depart, $847 (Jan 6–9, 11–12 returns), Dec 28 $992, Dec 29 $1,037. Cause unknown (Delta round-trip pricing rules vs Google one-way pricing).
